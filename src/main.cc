@@ -23,6 +23,8 @@
 #include "common/common.hh"
 #include <ctime>
 #include <cassert>
+#include <string>
+#include <dirent.h>
 
 #ifdef DISABLE_JPEG
 #define IMGFILE(x) #x ".png"
@@ -212,7 +214,99 @@ void work(int argc, char* argv[]) {
  *      imgs[i-1] = read_img(argv[i]);
  *  }
  */
+	std::vector<std::vector<Descriptor>> vFeats;
+	std::vector<std::vector<Vec2D>> vKeypoints;
+	
+	struct dirent **leftList;
+	struct dirent **rightList;
+	
+	int n1 = scandir(argv[1], &leftList, NULL, alphasort);
+	int n2 = scandir(argv[2], &rightList, NULL, alphasort);
+	print_debug("n1: %d\n", n1);
+	print_debug("n2: %d\n", n2);
+	
+	string lDir(argv[1]);
+	string rDir(argv[2]);
+	
+	int i = 3;
+	print_debug("stitcher preparing...\n");
+	string lname1(leftList[i]->d_name);
+	string lPath1 = lDir + "/" + lname1;
+	string rname1(rightList[i]->d_name);
+	string rPath1 = rDir + "/" + rname1;
+
+	print_debug("\nlfile: %s\nrfile: %s\n", lPath1.c_str(), rPath1.c_str());
 	vector<string> imgs;
+	imgs.emplace_back(lPath1.c_str());
+	imgs.emplace_back(rPath1.c_str());
+		
+	Mat32f res;
+	StitcherBase *p;
+	if (CYLINDER) {
+		p = new CylinderStitcher(move(imgs));
+	} else {
+		p = new Stitcher(move(imgs));
+	}
+
+	//Stitcher p(move(imgs));
+	res = p->build();
+	print_debug("saving first image...\n");
+	if (CROP) {
+		int oldw = res.width(), oldh = res.height();
+		res = crop(res);
+		print_debug("Crop from %dx%d to %dx%d\n", oldw, oldh, res.width(), res.height());
+	}
+	{
+		GuardedTimer tm("Writing image");
+		string fName = std::to_string(i) + ".jpg";
+		write_rgb(fName, res);
+	}
+	
+	print_debug("handling other imgs...\n");
+	i++;
+	while (i < n1) {
+		string lname(leftList[i]->d_name);
+		string lPath = lDir + "/" + lname;
+		string rname(rightList[i]->d_name);
+		string rPath = rDir + "/" + rname;
+
+		print_debug("\nlfile: %s\nrfile: %s\n", lPath.c_str(), rPath.c_str());
+		
+		if (!leftList[i]->d_name || leftList[i]->d_name[0] == '.' ||
+				!rightList[i]->d_name || rightList[i]->d_name[0] == '.') {
+			print_debug("Unavailable folder. Continue");
+			i++;
+			continue;
+		}
+		
+		vector<string> newimgs;
+		newimgs.emplace_back(lPath.c_str());
+		newimgs.emplace_back(rPath.c_str());
+		
+		Mat32f res2;
+		p->updateImgs(newimgs);
+		res2 = p->justBlend();
+
+		i++;
+			
+		if (res2.channels() < 3) {
+			print_debug("res mat channels < 3. Continue...\n");
+			continue;
+		}
+
+		if (CROP) {
+			int oldw = res2.width(), oldh = res2.height();
+			res2 = crop(res2);
+			print_debug("Crop from %dx%d to %dx%d\n", oldw, oldh, res2.width(), res2.height());
+		}
+		{
+			GuardedTimer tm("Writing image");
+			string fName = std::to_string(i - 1) + ".jpg";
+			write_rgb(fName, res2);
+		}
+	}
+
+	/*vector<string> imgs;
 	REPL(i, 1, argc) imgs.emplace_back(argv[i]);
 	Mat32f res;
 	if (CYLINDER) {
@@ -231,7 +325,7 @@ void work(int argc, char* argv[]) {
 	{
 		GuardedTimer tm("Writing image");
 		write_rgb(IMGFILE(out), res);
-	}
+	}*/
 }
 
 void init_config() {

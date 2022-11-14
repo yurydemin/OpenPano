@@ -56,8 +56,9 @@ class StitcherBase {
 		StitcherBase(const StitcherBase&) = delete;
 		StitcherBase& operator = (const StitcherBase&) = delete;
 
+		virtual void updateImgs(std::vector<std::string> newimgs) = 0;
+		virtual Mat32f justBlend() = 0;
 		virtual Mat32f build() = 0;
-
 		virtual ~StitcherBase() = default;
 };
 

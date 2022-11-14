@@ -29,16 +29,34 @@ namespace pano {
 const static bool DEBUG_OUT = false;
 const static char* MATCHINFO_DUMP = "log/matchinfo.txt";
 
+void Stitcher::updateImgs(std::vector<std::string> newimgs) {
+	imgs.clear();
+	REP(i, newimgs.size()) {
+		imgs.emplace_back(ImageRef(newimgs[i]));
+		imgs[i].load();
+		bundle.component[i].imgptr = &imgs[i];
+	}
+}
+
+Mat32f Stitcher::justBlend() {
+	bundle.update_proj_range();
+	return bundle.blend();
+}
+
 Mat32f Stitcher::build() {
   calc_feature();
   // TODO choose a better starting point by MST use centrality
 
   pairwise_matches.resize(imgs.size());
   for (auto& k : pairwise_matches) k.resize(imgs.size());
-  if (ORDERED_INPUT)
-    linear_pairwise_match();
-  else
-    pairwise_match();
+  if (ORDERED_INPUT) {
+    	if (!linear_pairwise_match()) {
+    		return Mat32f();
+    	}
+    }
+    else {
+        pairwise_match();
+    }
   free_feature();
   //load_matchinfo(MATCHINFO_DUMP);
   if (DEBUG_OUT) {
@@ -113,18 +131,21 @@ void Stitcher::pairwise_match() {
   print_debug("Total number of matched keypoint pairs: %d\n", total_nr_match);
 }
 
-void Stitcher::linear_pairwise_match() {
+bool Stitcher::linear_pairwise_match() {
   GuardedTimer tm("linear_pairwise_match()");
   int n = imgs.size();
   PairWiseMatcher pwmatcher(feats);
+  bool result = true;
 #pragma omp parallel for schedule(dynamic)
   REP(i, n) {
     int next = (i + 1) % n;
     if (!match_image(pwmatcher, i, next)) {
       if (i == n - 1)	// head and tail don't have to match
         continue;
-      else
-        error_exit(ssprintf("Image %d and %d don't match\n", i, next));
+      else {
+      	print_debug("Image %d and %d don't match\n", i, next);
+      	result = false;
+      }
     }
     continue; // TODO FIXME a->b, b->a
     do {
@@ -133,6 +154,7 @@ void Stitcher::linear_pairwise_match() {
         break;
     } while (match_image(pwmatcher, i, next));
   }
+  return result;
 }
 
 void Stitcher::assign_center() {

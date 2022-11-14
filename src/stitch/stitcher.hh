@@ -32,7 +32,7 @@ class Stitcher : public StitcherBase {
 		// pairwise matching of all images
 		void pairwise_match();
 		// equivalent to pairwise_match when dealing with linear images
-		void linear_pairwise_match();
+		bool linear_pairwise_match();
 
 		// assign a center to be identity
 		void assign_center();
@@ -55,6 +55,20 @@ class Stitcher : public StitcherBase {
 				REP(i, imgs.size())
 					bundle.component[i].imgptr = &imgs[i];
 			}
+
+		template<typename U, typename X =
+			disable_if_same_or_derived<Stitcher, U>>
+			Stitcher(U&& i, std::vector<std::vector<Descriptor>>& vFeats, std::vector<std::vector<Vec2D>>& vKeypoints) : StitcherBase(std::forward<U>(i)) {
+			bundle.component.resize(imgs.size());
+			REP(i, imgs.size())
+				bundle.component[i].imgptr = &imgs[i];
+
+			feats = vFeats;
+			keypoints = vKeypoints;
+		}
+		
+		virtual void updateImgs(std::vector<std::string> newimgs);
+		virtual Mat32f justBlend();
 
 		virtual Mat32f build();
 };

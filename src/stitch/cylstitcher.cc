@@ -17,6 +17,21 @@ using namespace std;
 
 namespace pano {
 
+void CylinderStitcher::updateImgs(std::vector<std::string> newimgs) {
+	imgs.clear();
+	REP(i, newimgs.size()) {
+		imgs.emplace_back(ImageRef(newimgs[i]));
+		imgs[i].load();
+		bundle.component[i].imgptr = &imgs[i];
+	}
+}
+
+Mat32f CylinderStitcher::justBlend() {
+	bundle.update_proj_range();
+	auto ret = bundle.blend();
+	return perspective_correction(ret);
+}
+
 Mat32f CylinderStitcher::build() {
 	calc_feature();
 	bundle.identity_idx = imgs.size() >> 1;

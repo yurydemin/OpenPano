@@ -36,6 +36,8 @@ class CylinderStitcher : public StitcherBase {
 					bundle.component[i].imgptr = &imgs[i];
 			}
 
+		virtual void updateImgs(std::vector<std::string> newimgs);
+		virtual Mat32f justBlend();
 		virtual Mat32f build();
 };
 
